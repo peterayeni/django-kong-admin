@@ -187,7 +187,8 @@ def synchronize_plugin_configurations(client, queryset=None, delete=False):
 
     # Delete remote api's that do not exist in this database
     if queryset is None and delete:
-        for api_struct in client.apis.iterate():
+        apis = list(client.apis.iterate())
+        for api_struct in apis:
             api_id = api_struct.get('id', None)
             assert api_id is not None
 

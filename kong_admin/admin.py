@@ -5,8 +5,8 @@ from django.contrib import admin, messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http.response import HttpResponseRedirect
 
-from .logic import synchronize_apis, publish_api, withdraw_api, withdraw_api_by_id, publish_plugin_configuration, \
-    withdraw_plugin_configuration, withdraw_plugin_configuration_by_id
+from .logic import publish_api, withdraw_api, withdraw_api_by_id, synchronize_apis, publish_plugin_configuration, \
+    withdraw_plugin_configuration, withdraw_plugin_configuration_by_id, synchronize_plugin_configurations
 from .models import APIReference, PluginConfigurationReference, PluginConfigurationField
 from .factory import create_kong_client
 from .contrib import CustomModelAdmin
@@ -68,14 +68,14 @@ def synchronize_plugin_configuration_references(request, queryset=None):
     client = create_kong_client()
 
     try:
-        queryset = synchronize_apis(client, queryset=queryset, delete=True)
+        queryset = synchronize_plugin_configurations(client, queryset=queryset, delete=True)
     except Exception as e:
         messages.add_message(
-            request, messages.ERROR, 'Could not synchronize API References: %s' % str(e))
+            request, messages.ERROR, 'Could not synchronize Plugin Configuration References: %s' % str(e))
     else:
         messages.add_message(
-            request, messages.SUCCESS, 'Successfully synchronized %d API References (it can take a while before the '
-                                       'changes are visible!)' % queryset.count())
+            request, messages.SUCCESS, 'Successfully synchronized %d Plugin Configuration References (it can take a '
+                                       'while before the changes are visible!)' % queryset.count())
 
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
@@ -156,6 +156,11 @@ class PluginConfigurationReferenceAdmin(CustomModelAdmin):
         'caption': get_toggle_enable_caption,
         'url': 'toggle-enable/',
         'view': lambda request, pk: synchronize_plugin_configuration_reference(request, pk, toggle_enable=True)
+    }]
+    action_buttons = [{
+        'caption': 'Synchronize all',
+        'url': 'sync-plugin-configuration-refs/',
+        'view': synchronize_plugin_configuration_references
     }]
     list_select_related = True
     fieldsets = (
