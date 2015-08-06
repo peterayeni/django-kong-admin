@@ -6,8 +6,9 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.http.response import HttpResponseRedirect
 
 from .logic import publish_api, withdraw_api, withdraw_api_by_id, synchronize_apis, publish_plugin_configuration, \
-    withdraw_plugin_configuration, withdraw_plugin_configuration_by_id, synchronize_plugin_configurations
-from .models import APIReference, PluginConfigurationReference, PluginConfigurationField
+    withdraw_plugin_configuration, withdraw_plugin_configuration_by_id, synchronize_plugin_configurations, \
+    publish_consumer, withdraw_consumer, withdraw_consumer_by_id, synchronize_consumers
+from .models import APIReference, PluginConfigurationReference, PluginConfigurationField, ConsumerReference
 from .factory import create_kong_client
 from .contrib import CustomModelAdmin
 
@@ -105,6 +106,57 @@ def synchronize_plugin_configuration_reference(request, pk, toggle_enable=False)
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
 
+@staff_member_required
+def synchronize_consumer_references(request, queryset=None):
+    client = create_kong_client()
+
+    try:
+        queryset = synchronize_consumers(client, queryset=queryset, delete=True)
+    except Exception as e:
+        messages.add_message(
+            request, messages.ERROR, 'Could not synchronize Consumer References: %s' % str(e))
+    else:
+        messages.add_message(
+            request, messages.SUCCESS, 'Successfully synchronized %d Consumer References (it can take a while before '
+                                       'the changes are visible!)' % queryset.count())
+
+    return HttpResponseRedirect(request.META["HTTP_REFERER"])
+
+
+@staff_member_required
+def synchronize_consumer_reference(request, pk, toggle_enable=False):
+    client = create_kong_client()
+
+    obj = ConsumerReference.objects.get(id=pk)
+    if (toggle_enable and obj.enabled) or (not toggle_enable and not obj.enabled):
+        try:
+            obj = withdraw_consumer(obj, client)
+            obj.enabled = False
+        except Exception as e:
+            messages.add_message(
+                request, messages.ERROR, 'Could not withdraw Consumer Reference: %s (was it published?)' % str(e))
+        else:
+            messages.add_message(
+                request, messages.SUCCESS, 'Successfully withdrawn Consumer Reference (it can take a while before the '
+                                           'changes are visible!)')
+    else:
+        try:
+            obj = publish_consumer(obj, client)
+            obj.enabled = True
+        except Exception as e:
+            messages.add_message(request, messages.ERROR, 'Could not publish Consumer Reference: %s' % str(e))
+        else:
+            messages.add_message(
+                request, messages.SUCCESS, 'Successfully published Consumer Reference (it can take a while before the '
+                                           'changes are visible!)')
+
+    if toggle_enable:
+        # Updated enabled state without triggering another save
+        ConsumerReference.objects.filter(id=pk).update(enabled=obj.enabled)
+
+    return HttpResponseRedirect(request.META["HTTP_REFERER"])
+
+
 def get_toggle_enable_caption(obj):
     return 'Disable' if obj.enabled else 'Enable'
 
@@ -142,7 +194,7 @@ class APIReferenceAdmin(CustomModelAdmin):
 admin.site.register(APIReference, APIReferenceAdmin)
 
 
-class  PluginConfigurationFieldInline(admin.StackedInline):
+class PluginConfigurationFieldInline(admin.StackedInline):
     model = PluginConfigurationField
 
 
@@ -181,3 +233,35 @@ class PluginConfigurationReferenceAdmin(CustomModelAdmin):
 
 admin.site.register(PluginConfigurationReference, PluginConfigurationReferenceAdmin)
 
+
+class ConsumerReferenceAdmin(CustomModelAdmin):
+    list_display = ('username_or_custom_id','enabled', 'synchronized', 'consumer_id')
+    list_display_buttons = [{
+        'caption': 'Synchronize',
+        'url': 'sync-consumer-ref/',
+        'view': synchronize_consumer_reference
+    }, {
+        'caption': get_toggle_enable_caption,
+        'url': 'toggle-enable/',
+        'view': lambda request, pk: synchronize_consumer_reference(request, pk, toggle_enable=True)
+    }]
+    action_buttons = [{
+        'caption': 'Synchronize all',
+        'url': 'sync-consumer-refs/',
+        'view': synchronize_consumer_references
+    }]
+    list_select_related = True
+    fieldsets = (
+        (None, {
+            'fields': ('username', 'custom_id', 'enabled')
+        }),
+        (_('Audit'), {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+    readonly_fields = ('created_at', 'updated_at')
+
+    def username_or_custom_id(self, obj):
+        return obj.username or obj.custom_id
+
+admin.site.register(ConsumerReference, ConsumerReferenceAdmin)

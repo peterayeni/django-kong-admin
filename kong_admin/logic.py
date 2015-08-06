@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from kong.exceptions import ConflictError
 
-from .models import APIReference, PluginConfigurationReference, PluginConfigurationField
+from .models import APIReference, PluginConfigurationReference, PluginConfigurationField, ConsumerReference
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +93,13 @@ def synchronize_apis(client, queryset=None, delete=False):
     # Make sure we have a queryset
     queryset = queryset or APIReference.objects.all()
 
-    # Add remote apis that only exist in this database
-    for api_ref in queryset:
+    # Publish enabled API References
+    for api_ref in queryset.filter(enabled=True):
         publish_api(api_ref, client)
+
+    # Withdraw disabled API References
+    for api_ref in queryset.filter(enabled=False):
+        withdraw_api(api_ref, client)
 
     return queryset
 
@@ -211,5 +215,99 @@ def synchronize_plugin_configurations(client, queryset=None, delete=False):
     # Add remote apis that only exist in this database
     for plugin_configuration_ref in queryset:
         publish_plugin_configuration(plugin_configuration_ref, client)
+
+    return queryset
+
+
+def publish_consumer(consumer_ref, client):
+    try:
+        consumer_struct = client.consumers.create_or_update(
+            consumer_id=consumer_ref.consumer_id, username=consumer_ref.username, custom_id=consumer_ref.custom_id)
+    except ConflictError:
+        consumer_struct = client.consumers.update(
+            username_or_id=(consumer_ref.username or consumer_ref.consumer_id), username=consumer_ref.username,
+            custom_id=consumer_ref.custom_id)
+    except Exception as e:
+        logger.exception('Could not create consumer: %s', e)
+        raise e
+
+    consumer_ref.consumer_id = consumer_struct['id']
+    consumer_ref.synchronized_at = timezone.now()
+    consumer_ref.synchronized = True
+
+    assert consumer_ref.consumer_id is not None
+
+    # Doing this instead of saving will prevent the save signal from being send out!!!
+    ConsumerReference.objects\
+        .filter(id=consumer_ref.id)\
+        .update(consumer_id=consumer_ref.consumer_id, synchronized=consumer_ref.synchronized,
+                synchronized_at=consumer_ref.synchronized_at)
+
+    return consumer_ref
+
+
+def withdraw_consumer(consumer_ref, client):
+    assert consumer_ref.consumer_id is not None
+
+    client.consumers.delete(str(consumer_ref.consumer_id))
+
+    consumer_ref.consumer_id = None
+    consumer_ref.synchronized_at = None
+    consumer_ref.synchronized = False
+
+    # Doing this instead of saving will prevent the save signal from being send out!!!
+    ConsumerReference.objects\
+        .filter(id=consumer_ref.id)\
+        .update(consumer_id=consumer_ref.consumer_id, synchronized=consumer_ref.synchronized,
+                synchronized_at=consumer_ref.synchronized_at)
+
+    return consumer_ref
+
+
+def withdraw_consumer_by_id(consumer_id, client):
+    assert consumer_id is not None
+
+    try:
+        consumer_ref = ConsumerReference.objects.get(consumer_id=consumer_id)
+    except ConsumerReference.DoesNotExist:
+        consumer_ref = None
+
+    if consumer_ref is not None:
+        return withdraw_api(consumer_ref, client)
+
+    # We don't have a reference to that ConsumerReference anymore. Just try to remove it remotely
+    client.consumers.delete(str(consumer_id))
+
+
+def synchronize_consumers(client, queryset=None, delete=False):
+    """
+    :param client: The client to use
+    :type client: kong.contract.KongAdminContract
+    :param queryset: A queryset containing ConsumerReference objects
+    :type queryset: django.db.models.QuerySet.
+    :param delete: Whether or not to delete API's in the Kong service, if there is no model.
+    :type delete: bool
+    :return:
+    """
+
+    # Delete remote api's that do not exist in this database
+    if queryset is None and delete:
+        for consumer_struct in client.consumers.iterate():
+            consumer_id = consumer_struct.get('id', None)
+            assert consumer_id is not None
+            if not ConsumerReference.objects.filter(consumer_id=consumer_id).exists():
+                logger.debug('synchronize_consumers: delete consumer by id: %s' % consumer_id)
+                withdraw_consumer_by_id(consumer_id, client)
+
+    # Make sure we have a queryset
+    queryset = queryset or ConsumerReference.objects.all()
+
+    # Publish enabled Consumer References
+    for consumer_ref in queryset.filter(enabled=True):
+        publish_consumer(consumer_ref, client)
+
+    # Withdraw disabled Consumer References
+    for consumer_ref in queryset.filter(enabled=False):
+        withdraw_consumer(consumer_ref, client)
 
     return queryset

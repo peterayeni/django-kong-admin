@@ -68,6 +68,7 @@ class ConsumerReference(KongProxyModel):
     consumer_id = models.UUIDField(null=True, blank=True, editable=False)
     username = models.CharField(null=True, blank=True, unique=True, max_length=32)
     custom_id = models.CharField(null=True, blank=True, unique=True, max_length=48)
+    enabled = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = _('Consumer Reference')

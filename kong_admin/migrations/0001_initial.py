@@ -13,14 +13,14 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='APIReference',
             fields=[
-                ('id', models.AutoField(serialize=False, verbose_name='ID', auto_created=True, primary_key=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='created')),
+                ('id', models.AutoField(primary_key=True, serialize=False, auto_created=True, verbose_name='ID')),
+                ('created_at', models.DateTimeField(verbose_name='created', auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True, verbose_name='updated')),
                 ('synchronized', models.BooleanField(default=False)),
                 ('synchronized_at', models.DateTimeField(editable=False, verbose_name='synchronized', null=True, blank=True)),
                 ('target_url', models.URLField()),
-                ('name', models.CharField(max_length=32, unique=True, null=True, blank=True)),
-                ('public_dns', models.CharField(max_length=32, unique=True, null=True, blank=True)),
+                ('name', models.CharField(unique=True, max_length=32, null=True, blank=True)),
+                ('public_dns', models.CharField(unique=True, max_length=32, null=True, blank=True)),
                 ('path', models.CharField(max_length=32, null=True, blank=True)),
                 ('strip_path', models.BooleanField(default=False)),
                 ('api_id', models.UUIDField(editable=False, null=True, blank=True)),
@@ -34,14 +34,15 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ConsumerReference',
             fields=[
-                ('id', models.AutoField(serialize=False, verbose_name='ID', auto_created=True, primary_key=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='created')),
+                ('id', models.AutoField(primary_key=True, serialize=False, auto_created=True, verbose_name='ID')),
+                ('created_at', models.DateTimeField(verbose_name='created', auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True, verbose_name='updated')),
                 ('synchronized', models.BooleanField(default=False)),
                 ('synchronized_at', models.DateTimeField(editable=False, verbose_name='synchronized', null=True, blank=True)),
                 ('consumer_id', models.UUIDField(editable=False, null=True, blank=True)),
-                ('username', models.CharField(max_length=32, unique=True, null=True, blank=True)),
-                ('custom_id', models.CharField(max_length=48, unique=True, null=True, blank=True)),
+                ('username', models.CharField(unique=True, max_length=32, null=True, blank=True)),
+                ('custom_id', models.CharField(unique=True, max_length=48, null=True, blank=True)),
+                ('enabled', models.BooleanField(default=True)),
             ],
             options={
                 'verbose_name': 'Consumer Reference',
@@ -51,7 +52,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='PluginConfigurationField',
             fields=[
-                ('id', models.AutoField(serialize=False, verbose_name='ID', auto_created=True, primary_key=True)),
+                ('id', models.AutoField(primary_key=True, serialize=False, auto_created=True, verbose_name='ID')),
                 ('property', models.CharField(max_length=32)),
                 ('value', models.CharField(max_length=32)),
             ],
@@ -63,16 +64,16 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='PluginConfigurationReference',
             fields=[
-                ('id', models.AutoField(serialize=False, verbose_name='ID', auto_created=True, primary_key=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='created')),
+                ('id', models.AutoField(primary_key=True, serialize=False, auto_created=True, verbose_name='ID')),
+                ('created_at', models.DateTimeField(verbose_name='created', auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True, verbose_name='updated')),
                 ('synchronized', models.BooleanField(default=False)),
                 ('synchronized_at', models.DateTimeField(editable=False, verbose_name='synchronized', null=True, blank=True)),
                 ('plugin_configuration_id', models.UUIDField(editable=False, null=True, blank=True)),
-                ('name', models.CharField(max_length=32, verbose_name='Plugin Name', choices=[('basicauth', 'basicauth'), ('cors', 'cors'), ('filelog', 'filelog'), ('httplog', 'httplog'), ('keyauth', 'keyauth'), ('oauth2', 'oauth2'), ('ratelimiting', 'ratelimiting'), ('request_transformer', 'request_transformer'), ('requestsizelimiting', 'requestsizelimiting'), ('response_transformer', 'response_transformer'), ('ssl', 'ssl'), ('tcplog', 'tcplog'), ('udplog', 'udplog')])),
+                ('name', models.CharField(choices=[('basicauth', 'basicauth'), ('cors', 'cors'), ('filelog', 'filelog'), ('httplog', 'httplog'), ('keyauth', 'keyauth'), ('oauth2', 'oauth2'), ('ratelimiting', 'ratelimiting'), ('request_transformer', 'request_transformer'), ('requestsizelimiting', 'requestsizelimiting'), ('response_transformer', 'response_transformer'), ('ssl', 'ssl'), ('tcplog', 'tcplog'), ('udplog', 'udplog')], verbose_name='Plugin Name', max_length=32)),
                 ('enabled', models.BooleanField(default=True)),
-                ('api', models.ForeignKey(related_name='plugins', to='kong_admin.APIReference')),
-                ('consumer', models.ForeignKey(related_name='plugins', null=True, blank=True, to='kong_admin.ConsumerReference')),
+                ('api', models.ForeignKey(to='kong_admin.APIReference', related_name='plugins')),
+                ('consumer', models.ForeignKey(null=True, to='kong_admin.ConsumerReference', related_name='plugins', blank=True)),
             ],
             options={
                 'verbose_name': 'Plugin Configuration Reference',
@@ -82,7 +83,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='pluginconfigurationfield',
             name='configuration',
-            field=models.ForeignKey(related_name='fields', to='kong_admin.PluginConfigurationReference'),
+            field=models.ForeignKey(to='kong_admin.PluginConfigurationReference', related_name='fields'),
         ),
         migrations.AlterUniqueTogether(
             name='pluginconfigurationreference',
