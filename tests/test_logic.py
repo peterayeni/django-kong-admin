@@ -3,7 +3,7 @@ from __future__ import unicode_literals, print_function
 from django.test import TestCase
 
 from kong_admin import models
-from kong_admin.factory import create_kong_client
+from kong_admin.factory import get_kong_client
 from kong_admin.logic import publish_api, withdraw_api, withdraw_api_by_id, publish_plugin_configuration, \
     withdraw_plugin_configuration, withdraw_plugin_configuration_by_id
 
@@ -11,7 +11,7 @@ from .factories import APIReferenceFactory
 
 class APIReferenceLogicTestCase(TestCase):
     def setUp(self):
-        self.client = create_kong_client()
+        self.client = get_kong_client()
         self._cleanup_api = []
 
     def tearDown(self):

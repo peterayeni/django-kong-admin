@@ -11,8 +11,6 @@ DATABASES = {
 
 KONG_ADMIN_URL = env('KONG_ADMIN_URL', default='http://localhost:8001')
 KONG_ADMIN_SIMULATOR = env('KONG_ADMIN_SIMULATOR', default=False)
-KONG_ADMIN_API_SYNCHRONIZATION_ENGINE = env(
-    'KONG_ADMIN_API_SYNCHRONIZATION_ENGINE', default='kong_admin.sync.DefaultAPISynchronizationEngine')
 
 LOGGING = {
     'version': 1,

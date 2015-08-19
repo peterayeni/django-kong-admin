@@ -4,8 +4,19 @@ from django.conf import settings
 from django.utils.lru_cache import lru_cache
 from django.utils.module_loading import import_string
 
+from .sync.apis import APISyncEngine
+from .sync.consumers import ConsumerSyncEngine
 
-def create_kong_client():
+
+def get_api_sync_engine():
+    return APISyncEngine()
+
+
+def get_consumer_sync_engine():
+    return ConsumerSyncEngine()
+
+
+def get_kong_client():
     from kong.client import KongAdminClient
     from kong.simulator import KongAdminSimulator
 
@@ -16,10 +27,3 @@ def create_kong_client():
         return KongAdminSimulator(api_url)
 
     return KongAdminClient(api_url)
-
-@lru_cache(1)
-def get_api_sync_engine():
-    sync_engine_class_name = getattr(settings, 'KONG_ADMIN_API_SYNCHRONIZATION_ENGINE')
-    sync_engine_class = import_string(sync_engine_class_name)
-    return sync_engine_class(create_kong_client())
-
