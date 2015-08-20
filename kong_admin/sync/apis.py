@@ -34,6 +34,13 @@ class APISyncEngine(KongProxySyncEngine):
             api_struct = client.apis.update(
                 name_or_id=(obj.name or obj.public_dns), target_url=obj.target_url, name=obj.name,
                 public_dns=obj.public_dns, path=obj.path, strip_path=obj.strip_path)
+
+        name = api_struct['name']
+
+        if obj.name != name:
+            obj.name = name
+            self.get_proxy_class().objects.filter(id=obj.id).update(name=obj.name)
+
         return api_struct['id']
 
     def on_withdraw_by_id(self, client, kong_id, parent_kong_id=None):
