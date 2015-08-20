@@ -59,6 +59,36 @@ class APIReference(KongProxyModel):
 
 
 @python_2_unicode_compatible
+class PluginConfigurationReference(KongProxyModel):
+    api = models.ForeignKey(APIReference, related_name='plugins')
+    consumer = models.ForeignKey('ConsumerReference', null=True, blank=True, related_name='plugins')
+    name = models.CharField(_('Plugin Name'), choices=Plugins.choices(), max_length=32)
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = _('Plugin Configuration Reference')
+        verbose_name_plural = _('Plugin Configuration References')
+        unique_together = [('name', 'api')]
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
+class PluginConfigurationField(models.Model):
+    configuration = models.ForeignKey(PluginConfigurationReference, related_name='fields')
+    property = models.CharField(max_length=32)
+    value = models.CharField(max_length=32)
+
+    class Meta:
+        verbose_name = _('Plugin Configuration Field')
+        verbose_name_plural = _('Plugin Configuration Fields')
+
+    def __str__(self):
+        return '%s = %s' % (self.property, self.value)
+
+
+@python_2_unicode_compatible
 class ConsumerReference(KongProxyModel):
     username = models.CharField(null=True, blank=True, unique=True, max_length=32)
     custom_id = models.CharField(null=True, blank=True, unique=True, max_length=48)
@@ -131,33 +161,3 @@ class OAuth2Reference(ConsumerAuthentication):
 
     def __str__(self):
         return 'OAuth2Reference(name: %s)' % self.name
-
-
-@python_2_unicode_compatible
-class PluginConfigurationReference(KongProxyModel):
-    api = models.ForeignKey(APIReference, related_name='plugins')
-    consumer = models.ForeignKey(ConsumerReference, null=True, blank=True, related_name='plugins')
-    name = models.CharField(_('Plugin Name'), choices=Plugins.choices(), max_length=32)
-    enabled = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = _('Plugin Configuration Reference')
-        verbose_name_plural = _('Plugin Configuration References')
-        unique_together = [('name', 'api')]
-
-    def __str__(self):
-        return self.name
-
-
-@python_2_unicode_compatible
-class PluginConfigurationField(models.Model):
-    configuration = models.ForeignKey(PluginConfigurationReference, related_name='fields')
-    property = models.CharField(max_length=32)
-    value = models.CharField(max_length=32)
-
-    class Meta:
-        verbose_name = _('Plugin Configuration Field')
-        verbose_name_plural = _('Plugin Configuration Fields')
-
-    def __str__(self):
-        return '%s = %s' % (self.property, self.value)

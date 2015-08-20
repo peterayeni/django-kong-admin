@@ -237,6 +237,7 @@ class KeyAuthInline(admin.StackedInline):
     extra = 0
     fields = ('key',)
 
+
 class OAuthInline(admin.StackedInline):
     model = OAuth2Reference
     extra = 0
