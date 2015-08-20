@@ -9,142 +9,110 @@ from django.http.response import HttpResponseRedirect
 
 from .models import APIReference, PluginConfigurationReference, PluginConfigurationField, ConsumerReference, \
     BasicAuthReference, KeyAuthReference, OAuth2Reference
-from .factory import get_kong_client, get_api_sync_engine, get_consumer_sync_engine
+from .factory import get_kong_client
+from .logic import synchronize_apis, synchronize_api, synchronize_plugin_configurations, \
+    synchronize_plugin_configuration, synchronize_consumers, synchronize_consumer
 from .contrib import CustomModelAdmin
 
 
 @staff_member_required
 def synchronize_api_references(request, queryset=None):
-    with closing(get_kong_client()) as client:
-        try:
-            queryset = get_api_sync_engine().synchronize(client, queryset=queryset, delete=True)
-        except Exception as e:
-            messages.add_message(
-                request, messages.ERROR, 'Could not synchronize API References: %s' % str(e))
-        else:
-            messages.add_message(
-                request, messages.SUCCESS, 'Successfully synchronized %d API References (it can take a while before the '
-                                           'changes are visible!)' % queryset.count())
+    try:
+        with closing(get_kong_client()) as client:
+            queryset = synchronize_apis(client, queryset=queryset, delete=True)
+    except Exception as e:
+        messages.add_message(
+            request, messages.ERROR, 'Could not synchronize API References: %s' % str(e))
+    else:
+        messages.add_message(
+            request, messages.SUCCESS, 'Successfully synchronized %d API References (it can take a while before the '
+                                       'changes are visible!)' % queryset.count())
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
 
 @staff_member_required
 def synchronize_api_reference(request, pk, toggle_enable=False):
-    with closing(get_kong_client()) as client:
-        obj = APIReference.objects.get(id=pk)
-        if (toggle_enable and obj.enabled) or (not toggle_enable and not obj.enabled):
-            try:
-                obj = get_api_sync_engine().withdraw(client, obj)
-                obj.enabled = False
-            except Exception as e:
-                messages.add_message(
-                    request, messages.ERROR, 'Could not withdraw API Reference: %s (was it published?)' % str(e))
-            else:
-                messages.add_message(
-                    request, messages.SUCCESS, 'Successfully withdrawn API Reference (it can take a while before the '
-                                               'changes are visible!)')
-        else:
-            try:
-                obj = get_api_sync_engine().publish(client, obj)
-                obj.enabled = True
-            except Exception as e:
-                messages.add_message(request, messages.ERROR, 'Could not publish API Reference: %s' % str(e))
-            else:
-                messages.add_message(
-                    request, messages.SUCCESS, 'Successfully published API Reference (it can take a while before the '
-                                               'changes are visible!)')
+    obj = APIReference.objects.get(id=pk)
 
-    if toggle_enable:
-        # Updated enabled state without triggering another save
-        APIReference.objects.filter(id=pk).update(enabled=obj.enabled)
+    try:
+        with closing(get_kong_client()) as client:
+            synchronize_api(client, obj, toggle=toggle_enable)
+    except Exception as e:
+        messages.add_message(
+            request, messages.ERROR, 'Could not sync API Reference: %s (was it published?)' % str(e))
+    else:
+        messages.add_message(
+            request, messages.SUCCESS, 'Successfully synced API Reference (it can take a while before the '
+                                       'changes are visible!)')
 
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
 
 @staff_member_required
 def synchronize_plugin_configuration_references(request, queryset=None):
-    with closing(get_kong_client()) as client:
-        try:
-            queryset = get_api_sync_engine().plugins().synchronize(client, queryset=queryset, delete=True)
-        except Exception as e:
-            messages.add_message(
-                request, messages.ERROR, 'Could not synchronize Plugin Configuration References: %s' % str(e))
-        else:
-            messages.add_message(
-                request, messages.SUCCESS, 'Successfully synchronized %d Plugin Configuration References (it can take a '
-                                           'while before the changes are visible!)' % queryset.count())
+    try:
+        with closing(get_kong_client()) as client:
+            queryset = synchronize_plugin_configurations(client, queryset=queryset)
+    except Exception as e:
+        messages.add_message(
+            request, messages.ERROR, 'Could not synchronize Plugin Configuration References: %s' % str(e))
+    else:
+        messages.add_message(
+            request, messages.SUCCESS, 'Successfully synchronized %d Plugin Configuration References (it can take a '
+                                       'while before the changes are visible!)' % queryset.count())
 
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
 
 @staff_member_required
 def synchronize_plugin_configuration_reference(request, pk, toggle_enable=False):
-    with closing(get_kong_client()) as client:
-        obj = PluginConfigurationReference.objects.get(id=pk)
 
-        if toggle_enable:
-            obj.enabled = not obj.enabled
+    obj = PluginConfigurationReference.objects.get(id=pk)
 
-        try:
-            obj = get_api_sync_engine().plugins().publish(client, obj)
-        except Exception as e:
-            messages.add_message(
-                request, messages.ERROR, 'Could not publish Plugin Configuration Reference: %s' % str(e))
-        else:
-            messages.add_message(
-                request, messages.SUCCESS, 'Successfully published Plugin Configuration Reference (it can take a while '
-                                           'before the changes are visible!)')
-
-    # Updated enabled state without triggering another save
-    PluginConfigurationReference.objects.filter(id=pk).update(enabled=obj.enabled)
+    try:
+        with closing(get_kong_client()) as client:
+            obj = synchronize_plugin_configuration(client, obj, toggle=toggle_enable)
+    except Exception as e:
+        messages.add_message(
+            request, messages.ERROR, 'Could not publish Plugin Configuration Reference: %s' % str(e))
+    else:
+        messages.add_message(
+            request, messages.SUCCESS, 'Successfully published Plugin Configuration Reference (it can take a while '
+                                       'before the changes are visible!)')
 
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
 
 @staff_member_required
 def synchronize_consumer_references(request, queryset=None):
-    with closing(get_kong_client()) as client:
-        try:
-            queryset = get_consumer_sync_engine().synchronize(client, queryset=queryset, delete=True)
-        except Exception as e:
-            messages.add_message(
-                request, messages.ERROR, 'Could not synchronize Consumer References: %s' % str(e))
-        else:
-            messages.add_message(
-                request, messages.SUCCESS, 'Successfully synchronized %d Consumer References (it can take a while before '
-                                           'the changes are visible!)' % queryset.count())
+    try:
+        with closing(get_kong_client()) as client:
+            queryset = synchronize_consumers(client, queryset=queryset)
+    except Exception as e:
+        messages.add_message(
+            request, messages.ERROR, 'Could not synchronize Consumer References: %s' % str(e))
+    else:
+        messages.add_message(
+            request, messages.SUCCESS, 'Successfully synchronized %d Consumer References (it can take a while before '
+                                       'the changes are visible!)' % queryset.count())
+
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 
 
 @staff_member_required
 def synchronize_consumer_reference(request, pk, toggle_enable=False):
-    with closing(get_kong_client()) as client:
-        obj = ConsumerReference.objects.get(id=pk)
-        if (toggle_enable and obj.enabled) or (not toggle_enable and not obj.enabled):
-            try:
-                obj = get_consumer_sync_engine().withdraw(client, obj)
-                obj.enabled = False
-            except Exception as e:
-                messages.add_message(
-                    request, messages.ERROR, 'Could not withdraw Consumer Reference: %s (was it published?)' % str(e))
-            else:
-                messages.add_message(
-                    request, messages.SUCCESS, 'Successfully withdrawn Consumer Reference (it can take a while before the '
-                                               'changes are visible!)')
-        else:
-            try:
-                obj = get_consumer_sync_engine().publish(client, obj)
-                obj.enabled = True
-            except Exception as e:
-                messages.add_message(request, messages.ERROR, 'Could not publish Consumer Reference: %s' % str(e))
-            else:
-                messages.add_message(
-                    request, messages.SUCCESS, 'Successfully published Consumer Reference (it can take a while before the '
-                                               'changes are visible!)')
+    obj = ConsumerReference.objects.get(id=pk)
 
-    if toggle_enable:
-        # Updated enabled state without triggering another save
-        ConsumerReference.objects.filter(id=pk).update(enabled=obj.enabled)
+    try:
+        with closing(get_kong_client()) as client:
+            obj = synchronize_consumer(client, obj, toggle=toggle_enable)
+    except Exception as e:
+        messages.add_message(
+            request, messages.ERROR, 'Could not sync Consumer Reference: %s (was it published?)' % str(e))
+    else:
+        messages.add_message(
+            request, messages.SUCCESS, 'Successfully synced Consumer Reference (it can take a while before the '
+                                       'changes are visible!)')
 
     return HttpResponseRedirect(request.META["HTTP_REFERER"])
 

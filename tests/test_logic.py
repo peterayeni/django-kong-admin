@@ -15,6 +15,8 @@ class APIReferenceLogicTestCase(TestCase):
         self._cleanup_api = []
 
     def tearDown(self):
+        self.client.close()
+
         for api_ref in self._cleanup_api:
             self.assertTrue(isinstance(api_ref, models.APIReference))
             api_ref = models.APIReference.objects.get(id=api_ref.id)  # reloads!!
