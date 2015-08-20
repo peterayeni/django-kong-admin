@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
+from abc import ABCMeta, abstractmethod
+
 from kong.exceptions import ConflictError
 from kong_admin.models import ConsumerReference, BasicAuthReference
 
@@ -48,9 +50,14 @@ class ConsumerSyncEngine(KongProxySyncEngine):
         return super(ConsumerSyncEngine, self).before_withdraw(client, obj)
 
 
-class BasicAuthSyncEngine(KongProxySyncEngine):
-    def get_proxy_class(self):
-        return BasicAuthReference
+class ConsumerAuthSyncEngine(KongProxySyncEngine):
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def get_auth_client(self, client, consumer_kong_id):
+        """
+        Returns the authentication client to use
+        """
 
     def on_retrieve_all(self, client):
         consumers = list(client.consumers.iterate())
@@ -58,14 +65,14 @@ class BasicAuthSyncEngine(KongProxySyncEngine):
             consumer_kong_id = consumer_struct.get('id', None)
             assert consumer_kong_id is not None
 
-            auth_list = client.consumers.basic_auth(consumer_kong_id).list(size=100).get('data', None)
+            auth_list = self.get_auth_client(client, consumer_kong_id).list(size=100).get('data', None)
             assert auth_list is not None
             for auth_struct in auth_list:
                 yield auth_struct
 
     def is_published(self, client, kong_id, parent_kong_id=None):
         try:
-            result = client.consumers.basic_auth(str(parent_kong_id)).retrieve(str(kong_id))
+            result = self.get_auth_client(client, parent_kong_id).retrieve(str(kong_id))
         except ValueError:
             return False
         return result is not None
@@ -76,18 +83,22 @@ class BasicAuthSyncEngine(KongProxySyncEngine):
     def get_parent_key(self):
         return 'consumer_id'
 
-    def on_publish(self, client, obj):
-        fields = {}
-
-        consumer_kong_id = obj.consumer.kong_id
-
-        auth_struct = client.consumers.basic_auth(str(consumer_kong_id)).create_or_update(
-            basic_auth_id=obj.kong_id, username=obj.username, password=obj.password, **fields)
-
-        return auth_struct['id']
-
     def on_withdraw_by_id(self, client, kong_id, parent_kong_id=None):
         assert kong_id is not None
         assert parent_kong_id is not None
 
-        client.consumers.basic_auth(str(parent_kong_id)).delete(kong_id)
+        self.get_auth_client(client, parent_kong_id).delete(kong_id)
+
+
+class BasicAuthSyncEngine(ConsumerAuthSyncEngine):
+    def get_proxy_class(self):
+        return BasicAuthReference
+
+    def get_auth_client(self, client, consumer_kong_id):
+        return client.consumers.basic_auth(str(consumer_kong_id))
+
+    def on_publish(self, client, obj):
+        auth_struct = self.get_auth_client(client, obj.consumer.kong_id).create_or_update(
+            basic_auth_id=obj.kong_id, username=obj.username, password=obj.password)
+
+        return auth_struct['id']
