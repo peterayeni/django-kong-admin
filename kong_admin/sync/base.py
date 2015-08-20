@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, print_function
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 
 from six import with_metaclass
 from abc import ABCMeta, abstractmethod
+
+logger = logging.getLogger(__name__)
 
 
 class KongProxySyncEngine(with_metaclass(ABCMeta, object)):
@@ -205,20 +209,20 @@ class KongProxySyncEngine(with_metaclass(ABCMeta, object)):
         :return:
         """
 
+        # Make sure we have a queryset
+        queryset = queryset or self.get_proxy_class().objects.all()
+
         # Delete remote api's that do not exist in this database
-        if queryset is None and delete:
+        if delete:
             for kong_struct in self.on_retrieve_all(client):
                 kong_id = kong_struct.get('id', None)
                 assert kong_id is not None
 
                 parent_kong_id = kong_struct.get(self.get_parent_key(), None)
 
-                if not self.get_proxy_class().objects.filter(kong_id=kong_id).exists():
+                if not queryset.filter(kong_id=kong_id).exists():
                     logger.debug('synchronize: delete %s by id: %s' % (self.get_proxy_class(), kong_id))
                     self.withdraw_by_id(client, kong_id, parent_kong_id=parent_kong_id)
-
-        # Make sure we have a queryset
-        queryset = queryset or self.get_proxy_class().objects.all()
 
         # Add remote apis that only exist in this database
         for obj in queryset:
