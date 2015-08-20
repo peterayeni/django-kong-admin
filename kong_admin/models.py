@@ -27,9 +27,9 @@ class KongProxyModel(models.Model):
 @python_2_unicode_compatible
 class APIReference(KongProxyModel):
     target_url = models.URLField()
-    name = models.CharField(null=True, blank=True, unique=True, max_length=32)
-    public_dns = models.CharField(null=True, blank=True, unique=True, max_length=32)
-    path = models.CharField(null=True, blank=True, max_length=32)
+    name = models.CharField(null=True, blank=True, unique=True, max_length=32, default=None)
+    public_dns = models.CharField(null=True, blank=True, unique=True, max_length=32, default=None)
+    path = models.CharField(null=True, blank=True, max_length=32, default=None)
     strip_path = models.BooleanField(default=False)
     enabled = models.BooleanField(default=True)
 
@@ -40,21 +40,18 @@ class APIReference(KongProxyModel):
     def __str__(self):
         return self.target_url if not self.name else '%s (%s)' % (self.name, self.target_url)
 
-    # def save(self, force_insert=False, force_update=False, using=None, update_fields=None):
-    #     self.name = self.name or None  # Don't store empty strings
-    #     self.public_dns = self.public_dns or None  # Don't store empty strings
-    #     self.path = self.path or None  # Don't store empty strings
-    #     super(APIReference, self).save(force_insert=force_insert, force_update=force_update, using=using,
-    #                                    update_fields=update_fields)
-
     def clean(self):
+        self.name = self.name or None  # Don't store empty strings
+        self.public_dns = self.public_dns or None  # Don't store empty strings
+        self.path = self.path or None  # Don't store empty strings
+
         if not self.public_dns and not self.path:
             raise ValidationError('At least one of the parameters "public_dns" and "path" should be set')
 
-        if self.synchronized_at and not self.api_id:
-            raise ValidationError('There should be an api_id parameter')
+        if self.synchronized_at and not self.kong_id:
+            raise ValidationError('There should be an kong_id parameter')
 
-        if self.api_id and not self.synchronized_at:
+        if self.kong_id and not self.synchronized_at:
             raise ValidationError('There should be a synchronized_at parameter')
 
 
@@ -101,14 +98,10 @@ class ConsumerReference(KongProxyModel):
     def __str__(self):
         return self.username or self.custom_id
 
-    # def save(self, force_insert=False, force_update=False, using=None, update_fields=None):
-    #     self.consumer_id = self.consumer_id or None  # Don't store empty strings
-    #     self.username = self.username or None  # Don't store empty strings
-    #     self.custom_id = self.custom_id or None  # Don't store empty strings
-    #     super(ConsumerReference, self).save(
-    #         force_insert=force_insert, force_update=force_update, using=using, update_fields=update_fields)
-
     def clean(self):
+        self.username = self.username or None  # Don't store empty strings
+        self.custom_id = self.custom_id or None  # Don't store empty strings
+
         if not self.username and not self.custom_id:
             raise ValidationError('At least one of the parameters "username" and "custom_id" should be set')
 
@@ -122,8 +115,8 @@ class ConsumerAuthentication(KongProxyModel):
 
 @python_2_unicode_compatible
 class BasicAuthReference(ConsumerAuthentication):
-    username = models.CharField(null=True, blank=True, unique=True, max_length=32)
-    password = models.CharField(null=True, blank=True, unique=True, max_length=40)
+    username = models.CharField(unique=True, max_length=32)
+    password = models.CharField(max_length=40)
 
     class Meta:
         verbose_name = _('Basic Auth Reference')
@@ -161,3 +154,7 @@ class OAuth2Reference(ConsumerAuthentication):
 
     def __str__(self):
         return 'OAuth2Reference(name: %s)' % self.name
+
+    def clean(self):
+        self.client_id = self.client_id or None  # Don't store empty strings
+        self.client_secret = self.client_secret or None  # Don't store empty strings
